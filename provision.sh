@@ -21,12 +21,23 @@ report() {
   [ -z "$CC_PROVISION_URL" ] && return 0
   local body="{\"stage\":\"$1\""
   [ -n "${2:-}" ] && body="$body,\"progress_pct\":$2"
-  [ -n "${3:-}" ] && body="$body,\"message\":\"$3\""
+  # Progress text goes in log_line — `message` is reserved for fatal errors
+  # (see ManagesApplicationProvisioning::hasApplicationProvisioningFailed).
+  [ -n "${3:-}" ] && body="$body,\"log_line\":\"$3\""
   body="$body}"
   curl -fsS -X POST "$CC_PROVISION_URL" \
     -H "Authorization: Bearer $CC_AGENT_TOKEN" \
     -H "Content-Type: application/json" \
     -d "$body" >/dev/null 2>&1 || true
+}
+
+report_fail() {
+  [ -z "$CC_PROVISION_URL" ] && return 0
+  local stage="$1" pct="$2" msg="$3"
+  curl -fsS -X POST "$CC_PROVISION_URL" \
+    -H "Authorization: Bearer $CC_AGENT_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"stage\":\"$stage\",\"progress_pct\":$pct,\"message\":\"$msg\"}" >/dev/null 2>&1 || true
 }
 
 report_meta() {
@@ -150,7 +161,7 @@ TARGET="http://127.0.0.1:${CC_SELKIES_PORT}/"
 [ -n "$PUBLIC_IP" ] && TARGET="http://${PUBLIC_IP}:${CC_SELKIES_PORT}/"
 
 if ! wait_http "$TARGET" 120; then
-  report boot_desktop 100 "Selkies did not respond on port ${CC_SELKIES_PORT}"
+  report_fail boot_desktop 100 "Selkies did not respond on port ${CC_SELKIES_PORT}"
   exit 1
 fi
 
