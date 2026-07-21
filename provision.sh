@@ -56,9 +56,11 @@ PY
 
 wait_http() {
   local url="$1" tries="${2:-120}"
-  local i=0
+  local i=0 code
   while [ "$i" -lt "$tries" ]; do
-    if curl -fsS -o /dev/null -m 5 "$url" 2>/dev/null; then
+    # Any HTTP response (incl. 401 from Selkies auth) means the stream is up.
+    code=$(curl -sS -o /dev/null -w '%{http_code}' -m 5 "$url" 2>/dev/null || echo 000)
+    if [ "$code" != "000" ]; then
       return 0
     fi
     sleep 5
@@ -157,8 +159,8 @@ maybe_tailscale() {
 }
 
 report boot_desktop 10 "Waiting for desktop stream"
+# Probe localhost only — public-IP hairpin from inside the VM often times out.
 TARGET="http://127.0.0.1:${CC_SELKIES_PORT}/"
-[ -n "$PUBLIC_IP" ] && TARGET="http://${PUBLIC_IP}:${CC_SELKIES_PORT}/"
 
 if ! wait_http "$TARGET" 120; then
   report_fail boot_desktop 100 "Selkies did not respond on port ${CC_SELKIES_PORT}"
